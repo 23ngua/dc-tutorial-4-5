@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="BusinessServer/BusinessServer.csproj" Id="565cfa44-226b-4321-9a4f-9bdde25435d1" />
+  <Project Path="Client/Client.csproj" Id="8f8cadde-c103-486a-8366-2b72996c61ba" />
+  <Project Path="DatabaseLib/DatabaseLib.csproj" Id="44e91207-2f8f-457b-a17e-239a7c58e81c" />
+  <Project Path="ServerInterfaceLib/ServerInterfaceLib.csproj" Id="07155ad9-912f-453d-9d80-4e96b1cc5e9f" />
+  <Project Path="ServerProg/ServerProg.csproj" Id="d1c288c3-f04a-4c71-b3a5-7609d378068c" />
+</Solution>
