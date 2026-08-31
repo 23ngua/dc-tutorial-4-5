@@ -5,7 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Client"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="MainWindow" 
+        Height="560"
+        MinHeight="560"
+        Width="700">
     <Grid>
         <TextBox x:Name="FNameBox"
                  HorizontalAlignment="Left"
@@ -46,7 +49,7 @@
                  HorizontalAlignment="Left"
                  Margin="210,270,0,0"
                  VerticalAlignment="Top"
-                 Width="80"
+                 Width="100"
                  Text="Index"/>
 
         <Button x:Name="GoButton"
@@ -54,7 +57,7 @@
                 HorizontalAlignment="Left"
                 Margin="360,270,0,0"
                 VerticalAlignment="Top"
-                Width="80"
+                Width="100"
                 Click="GoButton_Click"/>
 
         <TextBlock Text="Total Items:"
@@ -75,5 +78,32 @@
                Width="180"
                Height="180"
                Stretch="UniformToFill"/>
+		
+		<!-- Search by last name -->
+        <TextBox x:Name="SearchLastNameBox"
+                 HorizontalAlignment="Left"
+                 VerticalAlignment="Top"
+                 Margin="210,360,0,0"
+                 Width="100"
+                 Height="25"
+                 Text="Last Name"/>
+
+        <Button x:Name="SearchButton"
+				Content="Search"
+                HorizontalAlignment="Left"
+                Margin="360,360,0,0"
+                VerticalAlignment="Top"
+                Width="100"
+                Height="25"
+                Click="SearchButton_Click"/>
+        
+        <!-- Shows that a search is currently running -->
+        <ProgressBar x:Name="SearchProgressBar"
+                     HorizontalAlignment="Left"
+                     VerticalAlignment="Top"
+                     Margin="210,400,0,0"
+                     Width="250"
+                     Height="20"
+                     IsIndeterminate="False"/>
     </Grid>
 </Window>

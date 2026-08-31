@@ -17,6 +17,7 @@ using System.Linq.Expressions;
 using System.IO;
 using System.Windows.Media.Imaging;
 using BusinessServer;
+using System.Runtime.Remoting.Messaging;
 
 namespace Client
 {
@@ -27,6 +28,15 @@ namespace Client
     {
         private BusinessServerInterface foob;   // server interface field added
 
+        public delegate bool SearchDelegate(    // Delegate used to run Business Tier surname search asynchronously
+            string lastName,
+            out uint acctNo,
+            out uint pin,
+            out int bal,
+            out string fName,
+            out string lName,
+            out byte[] profilePicture);
+
         public MainWindow()
         {
             InitializeComponent();
@@ -36,12 +46,17 @@ namespace Client
             NetTcpBinding tcp = new NetTcpBinding();
 
             // ensures Client can receive profile-picture responses larger than WCF's default 64KB limit
-            tcp.MaxReceivedMessageSize = 10 * 1024 * 1024; 
+            tcp.MaxReceivedMessageSize = 10 * 1024 * 1024;
+
+            // Allow enough time for full 100,0000-record surname search
+            tcp.SendTimeout = TimeSpan.FromMinutes(15);
 
             // setting server URL and creating the channel
             string URL = "net.tcp://localhost:8200/BusinessService";
             foobFactory = new ChannelFactory<BusinessServerInterface>(tcp, URL);
             foob = foobFactory.CreateChannel();
+
+            ((IContextChannel)foob).OperationTimeout = TimeSpan.FromMinutes(15); // Explicit timeout for RPC operations on this channel
 
             // display the total number of records - actual RPC call to the server
             // client will contact server as soon as window starts and display the number of records in TotalNum
@@ -110,6 +125,213 @@ namespace Client
             catch (FaultException<string> ex)
             {
                 MessageBox.Show(ex.Detail);
+            }
+        }
+
+        // Searches database by last name using Business Tier
+        private void SearchButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Get last name entered by user
+            string lastName = SearchLastNameBox.Text.Trim();
+
+            // Put GUI into waiting state while search runs
+            SearchLastNameBox.IsReadOnly = true;
+            IndexNum.IsReadOnly = true;
+
+            // Make record fields read-only while search is running
+            FNameBox.IsReadOnly = true;
+            LNameBox.IsReadOnly = true;
+            AcctNoBox.IsReadOnly = true;
+            PinBox.IsReadOnly = true;
+            BalanceBox.IsReadOnly = true;
+
+            SearchButton.IsEnabled = false;
+            GoButton.IsEnabled = false; // x:Name button is GoButton
+
+            SearchProgressBar.IsIndeterminate = true;
+
+            // Start asynchronous search.
+            SearchDelegate searchDel = SearchBusinessTier;   // Run search using worker thread's own WCF connection
+            AsyncCallback callbackDel = OnSearchCompletion;     // Callback will run when search finishes
+
+            // Temporary out parameters required when starting delegate
+            // The real completed values are retrieved later using EndInvoke()
+            uint acctNo;
+            uint pin;
+            int bal;
+            string fName;
+            string lName;
+            byte[] profilePicture;
+
+            // Start search on a worker thread - returns immediately so WPF GUI remains responsive
+            searchDel.BeginInvoke(
+                lastName,
+                out acctNo,
+                out pin,
+                out bal,
+                out fName,
+                out lName,
+                out profilePicture,
+                callbackDel,
+                null);
+        }
+
+        // Performs surname RPC on worker thread
+        // Separate WCF channel created here so the long-running search does not use Business Tier channel created by GUI thread
+        private bool SearchBusinessTier(
+            string lastName,
+            out uint acctNo,
+            out uint pin,
+            out int bal,
+            out string fName,
+            out string lName,
+            out byte[] profilePicture)
+        {
+            NetTcpBinding tcp = new NetTcpBinding();  // Creates a separate WCF binding for background search
+            
+            tcp.MaxReceivedMessageSize = 10 * 1024 * 1024;
+            tcp.SendTimeout = TimeSpan.FromMinutes(15);
+
+            string url = "net.tcp://localhost:8200/BusinessService";
+
+            ChannelFactory<BusinessServerInterface> searchFactory = new ChannelFactory<BusinessServerInterface>(tcp, url);
+
+            BusinessServerInterface searchChannel = searchFactory.CreateChannel();
+
+            ((IContextChannel)searchChannel).OperationTimeout = TimeSpan.FromMinutes(15);   // Allow enough time for full 100,000 record search
+
+            try
+            {
+                // Perform actual RPC on this worker-thread channel
+                return searchChannel.SearchByLastName(
+                    lastName,
+                    out acctNo,
+                    out pin,
+                    out bal,
+                    out fName,
+                    out lName,
+                    out profilePicture);
+            }
+            finally
+            {
+                // Clean up the temporary WCF connection
+                IClientChannel clientChannel = (IClientChannel)searchChannel;
+
+                try
+                {
+                    if (clientChannel.State == CommunicationState.Faulted)
+                    {
+                        clientChannel.Abort();
+                        searchFactory.Abort();
+                    }
+                    else
+                    {
+                        clientChannel.Close();
+                        searchFactory.Close();
+                    }
+                }
+                catch
+                {
+                    clientChannel.Abort();
+                    searchFactory.Abort();
+                }
+            }
+        }
+
+        // Runs on worker thread after asynchronous surname search finishes
+        private void OnSearchCompletion(IAsyncResult asyncResult)
+        {
+            AsyncResult asyncObj = (AsyncResult)asyncResult;  // Get info about asynchronous delegate call
+
+            SearchDelegate searchDel = (SearchDelegate)asyncObj.AsyncDelegate;  // Get delegate that originally started the search
+
+            try
+            {
+                if (asyncObj.EndInvokeCalled == false)  // EndInvoke must only be called once
+                {
+                    bool found = searchDel.EndInvoke(   // Retrieve completed search result and out parameters
+                        out uint acctNo,
+                        out uint pin,
+                        out int bal,
+                        out string fName,
+                        out string lName,
+                        out byte[] profilePicture,
+                        asyncResult);
+
+                    Dispatcher.Invoke(new Action(() =>
+                    {
+                        if (found)
+                        {
+                            // Display matching record
+                            FNameBox.Text = fName;
+                            LNameBox.Text = lName;
+                            AcctNoBox.Text = acctNo.ToString();
+                            PinBox.Text = pin.ToString();
+                            BalanceBox.Text = bal.ToString("C");
+
+                            // Display returned profile picture
+                            if (profilePicture != null && profilePicture.Length > 0)
+                            {
+                                using (MemoryStream stream = new MemoryStream(profilePicture))
+                                {
+                                    BitmapImage bitmap = new BitmapImage();
+
+                                    bitmap.BeginInit();
+                                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                                    bitmap.StreamSource = stream;
+                                    bitmap.EndInit();
+
+                                    ProfileImage.Source = bitmap;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Search has finished = stop progress bar animation before display no-match message
+                            SearchProgressBar.IsIndeterminate = false;
+
+                            MessageBox.Show("No matching last name was found.", "Search Result", MessageBoxButton.OK, MessageBoxImage.Information);
+                        }
+                    }));
+                }
+            }
+            catch (TimeoutException)
+            {
+                // Handle RPC timeout without crashing Client
+                Dispatcher.Invoke(new Action(() =>
+                {
+                    MessageBox.Show("The search timed out before it could finish.", "Search Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }));
+            }
+            catch (CommunicationException)
+            {
+                // Hnadle failed or lost WCF connection
+                Dispatcher.Invoke(new Action(() =>
+                {
+                    MessageBox.Show("A communication error occurred while searching.", "Search Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }));
+            }
+            finally
+            {
+                Dispatcher.Invoke(new Action(() =>  // ALways restore GUI even if search fails
+                {
+                    SearchLastNameBox.IsReadOnly = false;
+                    IndexNum.IsReadOnly = false;
+
+                    FNameBox.IsReadOnly = false;
+                    LNameBox.IsReadOnly = false;
+                    AcctNoBox.IsReadOnly = false;
+                    PinBox.IsReadOnly = false;
+                    BalanceBox.IsReadOnly = false;
+
+                    SearchButton.IsEnabled = true;
+                    GoButton.IsEnabled = true;
+
+                    // Stop progress bar
+                    SearchProgressBar.IsIndeterminate = false;
+                }));
+
+                asyncObj.AsyncWaitHandle.Close();   // Clean up asynchronous operation
             }
         }
     }

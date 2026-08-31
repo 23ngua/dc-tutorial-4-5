@@ -17,6 +17,11 @@ namespace ServerInterfaceLib
         [OperationContract]
         int GetNumEntries();
 
+        // Returns only the last name for one database record
+        // Used by Business Tier when scannning records during a search
+        [OperationContract]
+        string GetLastNameForEntry(int index);
+
         [OperationContract]
         [FaultContract(typeof(string))] // WCF FaultContract - tells WCF that GetValuesForEntry() is allowed to return a fault containing a string message
         void GetValuesForEntry(

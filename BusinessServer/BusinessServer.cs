@@ -18,16 +18,15 @@ namespace BusinessServer
     [ServiceBehavior(ConcurrencyMode = ConcurrencyMode.Multiple, UseSynchronizationContext = false)]
     internal class BusinessServer : BusinessServerInterface
     {
-        // Remove connection to Data Tier
-        private DataServerInterface dataServer;
+        private DataServerInterface dataServer; // Remove connection to Data Tier
 
-        // This constructor sets up connection from Business Tier to Data Tier (running on port 8100)
-        public BusinessServer()
+        public BusinessServer() // This constructor sets up connection from Business Tier to Data Tier (running on port 8100)
         {
             NetTcpBinding tcp = new NetTcpBinding();
 
-            // This allows for profile-picture messages larger than WCF's default limit***
-            tcp.MaxReceivedMessageSize = 10 * 2046 * 2046;
+            tcp.MaxReceivedMessageSize = 10 * 1024 * 1024;  // This allows for profile-picture messages larger than WCF's default limit***
+
+            tcp.SendTimeout = TimeSpan.FromMinutes(5);  // Allow long-running Data Tier operations without timing out
 
             string url = "net.tcp://localhost:8100/DataService";
 
@@ -60,6 +59,53 @@ namespace BusinessServer
                 out fName,
                 out lName,
                 out profilePicture);
+        }
+
+        // Searches for the first record with a matching last name.
+        // Returns true when a match is found, otherwise false.
+        public bool SearchByLastName(
+            string lastName,
+            out uint acctNo,
+            out uint pin,
+            out int bal,
+            out string fName,
+            out string lName,
+            out byte[] profilePicture)
+        {
+            // Set safe deault values in case no matching record is found.
+            acctNo = 0;
+            pin = 0;
+            bal = 0;
+            fName = "";
+            lName = "";
+            profilePicture = null;
+
+            // Get the database size once before starting search - this avoids making another RPC call on every loop iteration
+            int totalEntries = dataServer.GetNumEntries();
+
+            for (int i =0; i < totalEntries; i++)
+            {
+                string currentLName = dataServer.GetLastNameForEntry(i);
+
+                // Stop when first matching surname is found
+                if (currentLName.Equals(lastName, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Only now fetch complete matching record once
+                    dataServer.GetValuesForEntry(
+                        i,
+                        out acctNo,
+                        out pin,
+                        out bal,
+                        out fName,
+                        out lName,
+                        out profilePicture);
+
+                    return true;
+                }
+            }
+
+            // No matching surname was found
+            return false;
         }
     }
 }

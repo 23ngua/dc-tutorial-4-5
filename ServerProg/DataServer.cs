@@ -31,6 +31,21 @@ namespace ServerProg
             return database.GetNumRecords(); // connects server method to DLL method
         }
 
+        // Returns only the last name for one database record
+        // Used by Business Tier when searching, so profile pictures and other fields
+        public string GetLastNameForEntry(int index)
+        {
+            // Validate index before reading from database
+            if (index < 0 || index >= database.GetNumRecords())
+            {
+                throw new FaultException<string>(
+                    "The requested database index is outside the valid range.",
+                    new FaultReason("Invalid database index"));
+            }
+
+            return database.GetLastNameByIndex(index);
+        }
+
         public void GetValuesForEntry(
             int index, 
             out uint acctNo, 
