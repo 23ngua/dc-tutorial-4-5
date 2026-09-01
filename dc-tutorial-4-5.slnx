@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="AsyncClient/AsyncClient.csproj" Id="6c2b4271-ca37-4851-9965-dd9e496d5149" />
   <Project Path="BusinessServer/BusinessServer.csproj" Id="565cfa44-226b-4321-9a4f-9bdde25435d1" />
   <Project Path="Client/Client.csproj" Id="8f8cadde-c103-486a-8366-2b72996c61ba" />
   <Project Path="DatabaseLib/DatabaseLib.csproj" Id="44e91207-2f8f-457b-a17e-239a7c58e81c" />
