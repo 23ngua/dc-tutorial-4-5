@@ -74,14 +74,29 @@ namespace BusinessServer
             out string lName,
             out byte[] profilePicture)
         {
-            dataServer.GetValuesForEntry(
-                index,
-                out acctNo,
-                out pin,
-                out bal,
-                out fName,
-                out lName,
-                out profilePicture);
+            try
+            {
+                // Request the record from Data Tier
+                dataServer.GetValuesForEntry(
+                    index,
+                    out acctNo,
+                    out pin,
+                    out bal,
+                    out fName,
+                    out lName,
+                    out profilePicture);
+            }
+            catch (FaultException<string> ex)
+            {
+                // Log the fault recevied from Data Tier
+                Log(
+                    $"GetValuesForEntry() failed." +
+                    $"Index: {index}. " +
+                    $"Data Tier fault: {ex.Detail}");
+
+                // Re-publish fault through Business Tier WCF boundary
+                throw new FaultException<string>(ex.Detail, new FaultReason("DataTier fault"));
+            }
 
             Log(  // Log input argument and returned record information
                 $"GetValuesForEntry() called. " +
@@ -112,6 +127,24 @@ namespace BusinessServer
             fName = "";
             lName = "";
             profilePicture = null;
+
+            lastName = lastName?.Trim(); // Clean up surname before validating and searching
+
+            if (string.IsNullOrWhiteSpace(lastName)) // Reject blank name searches
+            {
+                Log("SearchByLastName() called with invalid input: blank surname.");
+
+                throw new FaultException<string>("Please enter a last name.", new FaultReason("Invalid surname"));
+            }
+
+            bool validLastName = lastName.All(c => char.IsLetter(c) || c == ' ' || c == '-' || c == '\''); // Allow letters, spaces, hyphens and apostrophes
+
+            if (!validLastName)
+            {
+                Log($"SearchByLastName() called with invalid input: \"{lastName}\".");
+
+                throw new FaultException<string>("Last name can only contain letters, spaces, hyphens and apostrophes.", new FaultReason("Invalid surname"));
+            }
 
             // Get the database size once before starting search - this avoids making another RPC call on every loop iteration
             int totalEntries = dataServer.GetNumEntries();

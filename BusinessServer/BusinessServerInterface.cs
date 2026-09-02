@@ -34,6 +34,7 @@ namespace BusinessServer
         // Searches for the first record with a matching last name.
         // Returns true if a match is found, otherwise false.
         [OperationContract]
+        [FaultContract(typeof(string))]
         bool SearchByLastName(
             string lastName,
             out uint acctNo,

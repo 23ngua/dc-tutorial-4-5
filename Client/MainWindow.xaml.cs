@@ -303,6 +303,14 @@ namespace Client
                     MessageBox.Show("The search timed out before it could finish.", "Search Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }));
             }
+            catch (FaultException<string> ex)
+            {
+                // Display the validation fault which is returned by the Business Tier
+                Dispatcher.Invoke(new Action(() =>
+                {
+                    MessageBox.Show(ex.Detail, "Search Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }));
+            }
             catch (CommunicationException)
             {
                 // Hnadle failed or lost WCF connection

@@ -47,13 +47,13 @@ namespace AsyncClient
 
             tcp.MaxReceivedMessageSize = 10 * 1024 * 1024;
 
+            tcp.SendTimeout = TimeSpan.FromMinutes(5); // Time out for business tier surname search
+
             string url = "net.tcp://localhost:8200/BusinessService";
 
             ChannelFactory<BusinessServerInterface> searchFactory = new ChannelFactory<BusinessServerInterface>(tcp, url);
 
             BusinessServerInterface searchChannel = searchFactory.CreateChannel();
-
-            ((IContextChannel)searchChannel).OperationTimeout = TimeSpan.FromMinutes(15);
 
             try
             {
@@ -168,6 +168,7 @@ namespace AsyncClient
                 return;
             }
 
+            // Check that index is within the valid database range
             if (index < 0 || index >= int.Parse(TotalNum.Text)) // Validate that the index is inside the database range
             {
                 MessageBox.Show("Please enter an index between 0 and " + (int.Parse(TotalNum.Text) - 1) + ".");
@@ -249,6 +250,11 @@ namespace AsyncClient
 
                     MessageBox.Show("No matching last name was found.", "Search Result", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
+            }
+            catch (FaultException<string> ex)
+            {
+                // Display informative Business Tier validation/fault message (Business Tier returns a controlled WCF fault)
+                MessageBox.Show(ex.Detail, "Search Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             catch (TimeoutException)
             {
